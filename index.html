@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1117">
+  <title>Home Loop Test</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <header>
+      <div id="route-title">Home Loop Test</div>
+      <div id="mode-label">IDLE</div>
+    </header>
+
+    <section id="debug-panel">
+      <div class="dbg-heading">DEBUG</div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">GPS</span>
+        <span class="dbg-val">
+          <span id="dbg-lat">—</span>, <span id="dbg-lng">—</span>
+          <span class="dbg-muted"> ± <span id="dbg-acc">—</span></span>
+        </span>
+      </div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">Target</span>
+        <span class="dbg-val" id="dbg-target">—</span>
+      </div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">Distance</span>
+        <span class="dbg-val"><span id="dbg-dist">—</span>
+          <span class="dbg-muted"> (radius <span id="dbg-radius">—</span>)</span>
+        </span>
+      </div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">Tick</span>
+        <span class="dbg-val" id="dbg-reason">—</span>
+      </div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">Last fired</span>
+        <span class="dbg-val" id="dbg-last">—</span>
+      </div>
+    </section>
+
+    <div id="now-playing" class="hidden">
+      <div class="np-tag">NOW PLAYING</div>
+      <div id="np-text"></div>
+    </div>
+
+    <div id="controls">
+      <button id="btn-start">START</button>
+      <button id="btn-simulate">SIMULATE</button>
+      <button id="btn-stop" disabled>STOP</button>
+      <button id="btn-reset">RESET</button>
+    </div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

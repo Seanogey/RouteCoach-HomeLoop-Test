@@ -1,0 +1,142 @@
+{
+  "route": {
+    "name": "Home Walking Circuit",
+    "mode": "walking",
+    "area": "Mascot NSW",
+    "engineVersion": "v1.1"
+  },
+  "points": [
+    {
+      "sequence": 1,
+      "type": "start",
+      "turnDirection": null,
+      "streetName": null,
+      "qualifier": null,
+      "location": { "lat": -33.9223996, "lng": 151.1870069 },
+      "radius": 25,
+      "defaultText": "You are at the start of the Home Walking Circuit, outside Tempo Apartments, Church Avenue.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 2,
+      "type": "turn",
+      "turnDirection": "R",
+      "streetName": "Church Avenue",
+      "qualifier": null,
+      "location": { "lat": -33.922338531736806, "lng": 151.18724892175163 },
+      "radius": 15,
+      "defaultText": "Turn right onto Church Avenue, heading towards Bourke Street.",
+      "additionalText": "42 Church Avenue is across the road.",
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 3,
+      "type": "turn",
+      "turnDirection": "R",
+      "streetName": "Bourke Street",
+      "qualifier": "at Church Avenue",
+      "location": { "lat": -33.9222835, "lng": 151.1873662 },
+      "radius": 15,
+      "defaultText": "Turn right onto Bourke Street, at the corner of Church Avenue.",
+      "additionalText": "Passing Mascot Bus Station Stand C for route 358.",
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 4,
+      "type": "turn",
+      "turnDirection": "L",
+      "streetName": null,
+      "qualifier": "at zebra crossing near Mascot Station",
+      "location": { "lat": -33.923144371250025, "lng": 151.18720854930316 },
+      "radius": 15,
+      "defaultText": "Turn left at the zebra crossing, crossing towards the older Mascot Train Station.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 5,
+      "type": "turn",
+      "turnDirection": "R",
+      "streetName": "Bourke Street",
+      "qualifier": null,
+      "location": { "lat": -33.9231816, "lng": 151.1873568 },
+      "radius": 15,
+      "defaultText": "Turn right onto Bourke Street, walking past the Mascot Train Station entrance.",
+      "additionalText": "Passing Domino's Pizza, Royal Tobacco Shop and Mr Lai Restaurant on the right.",
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 6,
+      "type": "busStop",
+      "turnDirection": null,
+      "streetName": null,
+      "qualifier": null,
+      "location": { "lat": -33.923454, "lng": 151.187241 },
+      "radius": 20,
+      "defaultText": "Bus stop, Stand D.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 7,
+      "type": "turn",
+      "turnDirection": "L",
+      "streetName": "John Street",
+      "qualifier": "after zebra crossing",
+      "location": { "lat": -33.92354816960754, "lng": 151.18722951558 },
+      "radius": 15,
+      "defaultText": "Turn left into John Street, after the zebra crossing.",
+      "additionalText": "Passing the GoGet car space.",
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 8,
+      "type": "turn",
+      "turnDirection": "R",
+      "streetName": "Laycock Street",
+      "qualifier": "towards Coward Street",
+      "location": { "lat": -33.923700170694396, "lng": 151.18787255006472 },
+      "radius": 15,
+      "defaultText": "Turn right into Laycock Street, towards Coward Street.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 9,
+      "type": "turn",
+      "turnDirection": "L",
+      "streetName": "Coward Street",
+      "qualifier": null,
+      "location": { "lat": -33.92436206034249, "lng": 151.18774310243526 },
+      "radius": 15,
+      "defaultText": "Turn left onto Coward Street.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 10,
+      "type": "busStop",
+      "turnDirection": null,
+      "streetName": null,
+      "qualifier": "at Stand A",
+      "location": { "lat": -33.92436873723253, "lng": 151.18781887483541 },
+      "radius": 20,
+      "defaultText": "Bus stop, Stand A.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    },
+    {
+      "sequence": 11,
+      "type": "end",
+      "turnDirection": null,
+      "streetName": null,
+      "qualifier": null,
+      "location": { "lat": -33.92453785929052, "lng": 151.18921789078118 },
+      "radius": 20,
+      "defaultText": "You have arrived outside Little Whale Cafe. End of the Home Walking Circuit.",
+      "additionalText": null,
+      "additionalTextExpiry": null
+    }
+  ]
+}
