@@ -90,8 +90,9 @@ header {
 
 .dbg-muted { color: #484f58; }
 
-/* arrived state on distance row */
+/* distance row states */
 .arrived { color: #3fb950; font-weight: 700; }
+.warn    { color: #e3b341; font-style: italic; }
 
 /* ── Now Playing ────────────────────────────────────────────── */
 #now-playing {
@@ -146,3 +147,34 @@ button:disabled { opacity: 0.3; cursor: default; }
 #btn-simulate { background: #1f6feb; color: #fff; }
 #btn-stop     { background: #b91c1c; color: #fff; }
 #btn-reset    { background: #21262d; color: #e6edf3; }
+
+/* ── Log bar ────────────────────────────────────────────────── */
+#log-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 12px 0;
+  padding: 8px 12px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #8b949e;
+}
+
+#btn-download {
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  background: #21262d;
+  color: #8b949e;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  text-transform: uppercase;
+}
+#btn-download:not(:disabled) { background: #0d3320; color: #3fb950; border-color: #3fb95055; }
+#btn-download:active          { opacity: 0.75; }

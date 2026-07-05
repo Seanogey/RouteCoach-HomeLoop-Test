@@ -35,9 +35,20 @@
 
       <div class="dbg-row">
         <span class="dbg-key">Distance</span>
-        <span class="dbg-val"><span id="dbg-dist">—</span>
-          <span class="dbg-muted"> (radius <span id="dbg-radius">—</span>)</span>
+        <span class="dbg-val">
+          <span id="dbg-dist">—</span>
+          <span class="dbg-muted"> (inner <span id="dbg-inner">—</span> / outer <span id="dbg-outer">—</span>)</span>
         </span>
+      </div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">Speed</span>
+        <span class="dbg-val" id="dbg-speed">—</span>
+      </div>
+
+      <div class="dbg-row">
+        <span class="dbg-key">Departure</span>
+        <span class="dbg-val" id="dbg-depart">—</span>
       </div>
 
       <div class="dbg-row">
@@ -61,6 +72,11 @@
       <button id="btn-simulate">SIMULATE</button>
       <button id="btn-stop" disabled>STOP</button>
       <button id="btn-reset">RESET</button>
+    </div>
+
+    <div id="log-bar">
+      <span id="dbg-log-count">0 entries</span>
+      <button id="btn-download" disabled>Download Log</button>
     </div>
 
   </div>

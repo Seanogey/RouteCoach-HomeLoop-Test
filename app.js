@@ -1,19 +1,30 @@
 'use strict';
 
-const DATA_FILE       = 'home_loop_points.json';
-const SIM_INTERVAL_MS = 3000;   // ms between simulated arrivals
+const DATA_FILE               = 'home_loop_points.json';
+const SIM_INTERVAL_MS         = 3000;
+
+// ── v1.2 arrival-detection constants ─────────────────────────────────────────
+const ACCURACY_FLOOR_M        = 30;   // discard fixes worse than this
+const STOP_SPEED_THRESHOLD_MS = 0.3;  // m/s — below this counts as "stopped"
+const COOLDOWN_SECONDS        = 7;    // no arrival checks this long after a fire
+const GPS_WEAK_TIMEOUT_S      = 30;   // warn if no accepted fix for this long
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let points = [];
 
 let state = {
-  mode:          'idle',   // 'idle' | 'live' | 'simulating'
-  targetIdx:     0,        // index into points[] of the ONE point being waited for
-  watchId:       null,
-  simHandle:     null,
-  audioUnlocked: false,
-  lastFired:     null,     // { sequence, type, streetName, time }
-  lastTick:      null,     // { lat, lng, accuracy, dist, radius, reason }
+  mode:               'idle',
+  targetIdx:          0,
+  watchId:            null,
+  simHandle:          null,
+  audioUnlocked:      false,
+  lastFired:          null,    // { sequence, type, streetName, time }
+  lastFiredLocation:  null,    // { lat, lng } of last fired point (for departure display)
+  lastFireTime:       null,    // Date.now() when last point fired (for cooldown)
+  lastAcceptedFix:    null,    // { lat, lng, timeMs } — last fix that passed accuracy gate
+  lastAcceptedTimeMs: null,    // ms of last accepted fix (for GPS weak check)
+  lastTick:           null,
+  fixLog:             [],      // every fix, accepted and rejected
 };
 
 // ── Haversine ─────────────────────────────────────────────────────────────────
@@ -33,36 +44,78 @@ async function loadPoints() {
   if (!res.ok) throw new Error('Failed to load ' + DATA_FILE + ': ' + res.status);
   const data = await res.json();
   points = data.points.slice().sort((a, b) => a.sequence - b.sequence);
-  console.log(`Loaded ${points.length} points.`);
+  console.log('Loaded ' + points.length + ' points.');
   refreshDebug();
 }
 
-// ── Core engine: one GPS tick ─────────────────────────────────────────────────
-// This is the ENTIRE routing logic. One distance check against ONE target.
+// ── Core engine ───────────────────────────────────────────────────────────────
+// Every GPS fix passes through here. Five steps in order.
 function onFix(lat, lng, accuracy) {
   if (state.mode === 'idle' || state.targetIdx >= points.length) return;
 
-  const target  = points[state.targetIdx];
-  const dist    = Math.round(haversineMetres(lat, lng, target.location.lat, target.location.lng));
-  const arrived = dist < target.radius;
+  const nowMs  = Date.now();
+  const target = points[state.targetIdx];
 
-  state.lastTick = {
-    lat, lng, accuracy,
-    dist,
-    radius:  target.radius,
-    reason:  arrived
-      ? `arrived: ${dist} m < ${target.radius} m radius`
-      : `too far: ${dist} m (radius ${target.radius} m)`,
-  };
+  // Step 1 — accuracy gate
+  if (accuracy > ACCURACY_FLOOR_M) {
+    const reason = 'rejected: accuracy ' + Math.round(accuracy) + 'm > ' + ACCURACY_FLOOR_M + 'm floor';
+    appendLog(nowMs, lat, lng, accuracy, null, null, reason);
+    state.lastTick = { lat, lng, accuracy, dist: null, speed: null, reason };
+    refreshDebug();
+    return;
+  }
 
+  // Steps 3 & 4 — distance and speed (computed before updating lastAcceptedFix)
+  const dist = haversineMetres(lat, lng, target.location.lat, target.location.lng);
+  let speed = null;
+  if (state.lastAcceptedFix) {
+    const dt = (nowMs - state.lastAcceptedFix.timeMs) / 1000;
+    if (dt > 0) {
+      speed = haversineMetres(lat, lng,
+        state.lastAcceptedFix.lat, state.lastAcceptedFix.lng) / dt;
+    }
+  }
+
+  // Record this fix as accepted (good accuracy), used for next speed calculation
+  state.lastAcceptedFix    = { lat, lng, timeMs: nowMs };
+  state.lastAcceptedTimeMs = nowMs;
+
+  // Step 2 — cooldown gate (checked after speed is computed so debug still shows speed)
+  const cooldownRemaining = state.lastFireTime
+    ? Math.max(0, COOLDOWN_SECONDS - (nowMs - state.lastFireTime) / 1000)
+    : 0;
+  if (cooldownRemaining > 0) {
+    const reason = 'cooldown: ' + cooldownRemaining.toFixed(1) + 's remaining';
+    appendLog(nowMs, lat, lng, accuracy, dist, speed, reason);
+    state.lastTick = { lat, lng, accuracy, dist, speed, reason, inner: target.radius, outer: target.outerRadius };
+    refreshDebug();
+    return;
+  }
+
+  // Step 5 — dual-ring arrival check
+  const inner    = target.radius;
+  const outer    = target.outerRadius;
+  const innerHit = dist <= inner;
+  const outerHit = outer > 0 && dist <= outer && speed !== null && speed <= STOP_SPEED_THRESHOLD_MS;
+  const arrived  = innerHit || outerHit;
+
+  let reason;
+  if (innerHit) {
+    reason = 'arrived: inner radius (' + Math.round(dist) + 'm ≤ ' + inner + 'm)';
+  } else if (outerHit) {
+    reason = 'arrived: outer + stopped (' + Math.round(dist) + 'm ≤ ' + outer + 'm, ' + speed.toFixed(2) + 'm/s)';
+  } else {
+    reason = 'too far: ' + Math.round(dist) + 'm (inner ' + inner + 'm / outer ' + outer + 'm)';
+  }
+
+  appendLog(nowMs, lat, lng, accuracy, dist, speed, reason);
+  state.lastTick = { lat, lng, accuracy, dist, speed, reason, inner, outer };
   refreshDebug();
 
   if (arrived) {
     firePoint(target);
     state.targetIdx++;
-    if (state.targetIdx >= points.length) {
-      finishRoute();
-    }
+    if (state.targetIdx >= points.length) finishRoute();
   }
 }
 
@@ -70,6 +123,8 @@ function onFix(lat, lng, accuracy) {
 function firePoint(point) {
   const now = new Date();
 
+  state.lastFireTime    = Date.now();
+  state.lastFiredLocation = { lat: point.location.lat, lng: point.location.lng };
   state.lastFired = {
     sequence:   point.sequence,
     type:       point.type,
@@ -78,7 +133,6 @@ function firePoint(point) {
   };
 
   let text = point.defaultText || '';
-
   if (point.additionalText) {
     const expiry  = point.additionalTextExpiry ? new Date(point.additionalTextExpiry) : null;
     const expired = expiry && expiry < now;
@@ -87,8 +141,7 @@ function firePoint(point) {
 
   enqueueSpeak(text);
   refreshDebug();
-
-  console.log(`▶ #${point.sequence} ${point.type}: "${text}"`);
+  console.log('▶ #' + point.sequence + ' ' + point.type + ': "' + text + '"');
 }
 
 function finishRoute() {
@@ -97,8 +150,43 @@ function finishRoute() {
   stopSimulate();
   setModeLabel('DONE', 'done');
   setButtonState();
-  state.lastTick = { ...state.lastTick, reason: 'Route complete — all points fired.' };
+  if (state.lastTick) state.lastTick.reason = 'Route complete — all points fired.';
   refreshDebug();
+}
+
+// ── Fix log ───────────────────────────────────────────────────────────────────
+function appendLog(nowMs, lat, lng, accuracy, dist, speed, reason) {
+  state.fixLog.push({
+    timestamp: new Date(nowMs).toISOString(),
+    lat:       lat,
+    lng:       lng,
+    accuracy:  Math.round(accuracy),
+    dist_m:    dist !== null ? Math.round(dist) : '',
+    speed_ms:  speed !== null ? speed.toFixed(3) : '',
+    reason:    reason,
+  });
+  el('dbg-log-count').textContent = state.fixLog.length + ' entries';
+  el('btn-download').disabled = false;
+}
+
+function downloadLog() {
+  if (state.fixLog.length === 0) return;
+  const header = 'timestamp,lat,lng,accuracy_m,dist_m,speed_ms,reason';
+  const rows = state.fixLog.map(function(e) {
+    return [
+      e.timestamp, e.lat, e.lng, e.accuracy, e.dist_m, e.speed_ms,
+      '"' + String(e.reason).replace(/"/g, '""') + '"',
+    ].join(',');
+  });
+  const csv  = [header].concat(rows).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'homeloop_log_' +
+    new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Speech ────────────────────────────────────────────────────────────────────
@@ -114,7 +202,7 @@ function speakNext() {
   utt.volume = 1.0;
   isSpeaking = true;
   showNowPlaying(text);
-  utt.onend = utt.onerror = () => {
+  utt.onend = utt.onerror = function() {
     isSpeaking = false;
     if (speechQueue.length === 0) hideNowPlaying();
     speakNext();
@@ -151,14 +239,17 @@ function startLive() {
   requestWakeLock();
 
   state.watchId = navigator.geolocation.watchPosition(
-    pos => onFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
-    err => {
+    function(pos) {
+      onFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+    },
+    function(err) {
       console.error('GPS error', err.code, err.message);
-      if (state.lastTick) state.lastTick.reason = 'GPS error: ' + err.message;
-      else state.lastTick = { reason: 'GPS error: ' + err.message };
+      const reason = 'GPS error: ' + err.message;
+      if (state.lastTick) state.lastTick.reason = reason;
+      else state.lastTick = { reason: reason };
       refreshDebug();
     },
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 },
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
   );
 }
 
@@ -170,6 +261,8 @@ function stopGPS() {
 }
 
 // ── Simulate ──────────────────────────────────────────────────────────────────
+// Calls firePoint directly — bypasses onFix and all its gates intentionally.
+// Simulate exists to verify point order and cue text, not arrival detection.
 function startSimulate() {
   state.mode = 'simulating';
   setModeLabel('SIMULATING', 'simulating');
@@ -177,17 +270,17 @@ function startSimulate() {
 
   function step() {
     if (state.mode !== 'simulating' || state.targetIdx >= points.length) return;
-
     const target = points[state.targetIdx];
 
-    // Pretend we are standing exactly on the target point.
     state.lastTick = {
       lat:      target.location.lat,
       lng:      target.location.lng,
       accuracy: 3,
       dist:     0,
-      radius:   target.radius,
-      reason:   `SIMULATED arrival — 0 m < ${target.radius} m radius`,
+      speed:    0,
+      inner:    target.radius,
+      outer:    target.outerRadius,
+      reason:   'SIMULATED — 0m ≤ ' + target.radius + 'm inner radius',
     };
     refreshDebug();
 
@@ -198,7 +291,6 @@ function startSimulate() {
       finishRoute();
       return;
     }
-
     state.simHandle = setTimeout(step, SIM_INTERVAL_MS);
   }
 
@@ -220,7 +312,7 @@ async function requestWakeLock() {
   try { wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
 }
 
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible' && state.mode !== 'idle') requestWakeLock();
 });
 
@@ -229,56 +321,98 @@ function resetAll() {
   stopGPS();
   stopSimulate();
   clearSpeech();
-  state.mode       = 'idle';
-  state.targetIdx  = 0;
-  state.lastFired  = null;
-  state.lastTick   = null;
+  state.mode               = 'idle';
+  state.targetIdx          = 0;
+  state.lastFired          = null;
+  state.lastFiredLocation  = null;
+  state.lastFireTime       = null;
+  state.lastAcceptedFix    = null;
+  state.lastAcceptedTimeMs = null;
+  state.lastTick           = null;
+  state.fixLog             = [];
   setModeLabel('IDLE', '');
   setButtonState();
+  el('dbg-log-count').textContent = '0 entries';
+  el('btn-download').disabled = true;
   refreshDebug();
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function pointLabel(p) {
   const dir    = p.turnDirection === 'L' ? '← ' : p.turnDirection === 'R' ? '→ ' : '';
-  const street = p.streetName || (p.qualifier ? `(${p.qualifier})` : p.type);
-  return `#${p.sequence} ${p.type} ${dir}${street}`;
+  const street = p.streetName || (p.qualifier ? '(' + p.qualifier + ')' : p.type);
+  return '#' + p.sequence + ' ' + p.type + ' ' + dir + street;
 }
 
 function refreshDebug() {
   const target = points[state.targetIdx];
   const tick   = state.lastTick;
+  const nowMs  = Date.now();
 
-  // Target
+  // Target and radii
   el('dbg-target').textContent = target ? pointLabel(target) : 'DONE';
-  el('dbg-radius').textContent = target ? target.radius + ' m' : '—';
+  el('dbg-inner').textContent  = target ? target.radius + 'm' : '—';
+  el('dbg-outer').textContent  = target ? target.outerRadius + 'm' : '—';
 
-  // GPS + distance from last tick
-  if (tick) {
-    el('dbg-lat').textContent  = tick.lat  != null ? tick.lat.toFixed(6)  : '—';
-    el('dbg-lng').textContent  = tick.lng  != null ? tick.lng.toFixed(6)  : '—';
-    el('dbg-acc').textContent  = tick.accuracy != null ? Math.round(tick.accuracy) + ' m' : '—';
-    const distEl = el('dbg-dist');
-    distEl.textContent         = tick.dist != null ? tick.dist + ' m' : '—';
-    distEl.className           = (tick.dist != null && target && tick.dist < target.radius)
-                                   ? 'arrived' : '';
-    el('dbg-reason').textContent = tick.reason || '—';
+  if (!tick) return;
+
+  // GPS coordinates
+  el('dbg-lat').textContent = tick.lat  != null ? tick.lat.toFixed(6) : '—';
+  el('dbg-lng').textContent = tick.lng  != null ? tick.lng.toFixed(6) : '—';
+  el('dbg-acc').textContent = tick.accuracy != null ? Math.round(tick.accuracy) + 'm' : '—';
+
+  // Distance — GPS weak warning if no accepted fix for GPS_WEAK_TIMEOUT_S
+  const distEl     = el('dbg-dist');
+  const secsSince  = state.lastAcceptedTimeMs
+    ? (nowMs - state.lastAcceptedTimeMs) / 1000
+    : Infinity;
+  const gpsWeak    = state.mode === 'live' && secsSince > GPS_WEAK_TIMEOUT_S;
+
+  if (gpsWeak) {
+    distEl.textContent = 'GPS signal weak — waiting';
+    distEl.className   = 'warn';
+  } else if (tick.dist !== null && tick.dist !== undefined) {
+    distEl.textContent = Math.round(tick.dist) + 'm';
+    distEl.className   = (target && tick.dist <= target.radius) ? 'arrived' : '';
+  } else {
+    distEl.textContent = '—';
+    distEl.className   = '';
   }
+
+  // Speed
+  el('dbg-speed').textContent = tick.speed != null
+    ? tick.speed.toFixed(2) + ' m/s'
+    : '—';
+
+  // Departure distance from last fired point
+  const deptEl = el('dbg-depart');
+  if (state.lastFiredLocation && tick.lat != null) {
+    const d = Math.round(haversineMetres(
+      tick.lat, tick.lng,
+      state.lastFiredLocation.lat, state.lastFiredLocation.lng
+    ));
+    deptEl.textContent = d + 'm from #' + state.lastFired.sequence;
+  } else {
+    deptEl.textContent = '—';
+  }
+
+  // Tick reason
+  el('dbg-reason').textContent = tick.reason || '—';
 
   // Last fired
   if (state.lastFired) {
     const lf = state.lastFired;
     el('dbg-last').textContent =
-      `#${lf.sequence} ${lf.type}` +
-      (lf.streetName ? ` (${lf.streetName})` : '') +
-      ` @ ${lf.time}`;
+      '#' + lf.sequence + ' ' + lf.type +
+      (lf.streetName ? ' (' + lf.streetName + ')' : '') +
+      ' @ ' + lf.time;
   }
 }
 
-function setModeLabel(text, cls = '') {
-  const el2 = el('mode-label');
-  el2.textContent = text;
-  el2.className   = cls;
+function setModeLabel(text, cls) {
+  const e  = el('mode-label');
+  e.textContent = text;
+  e.className   = cls || '';
 }
 
 function setButtonState() {
@@ -301,19 +435,19 @@ function hideNowPlaying() {
 function el(id) { return document.getElementById(id); }
 
 // ── Button handlers ───────────────────────────────────────────────────────────
-el('btn-start').addEventListener('click', () => {
+el('btn-start').addEventListener('click', function() {
   unlockAudio();
   resetAll();
   startLive();
 });
 
-el('btn-simulate').addEventListener('click', () => {
+el('btn-simulate').addEventListener('click', function() {
   unlockAudio();
   resetAll();
   startSimulate();
 });
 
-el('btn-stop').addEventListener('click', () => {
+el('btn-stop').addEventListener('click', function() {
   stopGPS();
   stopSimulate();
   clearSpeech();
@@ -323,9 +457,10 @@ el('btn-stop').addEventListener('click', () => {
 });
 
 el('btn-reset').addEventListener('click', resetAll);
+el('btn-download').addEventListener('click', downloadLog);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadPoints().catch(err => {
+loadPoints().catch(function(err) {
   console.error(err);
-  document.getElementById('dbg-reason').textContent = 'Load error: ' + err.message;
+  el('dbg-reason').textContent = 'Load error: ' + err.message;
 });
