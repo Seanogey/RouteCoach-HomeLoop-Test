@@ -3,12 +3,13 @@
 const DATA_FILE               = 'home_loop_points.json';
 const SIM_INTERVAL_MS         = 3000;
 
-// ── v1.2 / v1.3 arrival-detection constants ───────────────────────────────────
+// ── v1.2 / v1.3 / v1.4 arrival-detection constants ───────────────────────────
 const ACCURACY_FLOOR_M        = 30;   // discard fixes worse than this
 const STOP_SPEED_THRESHOLD_MS = 0.3;  // m/s — below this counts as "stopped"
 const COOLDOWN_SECONDS        = 7;    // no arrival checks this long after a fire
 const GPS_WEAK_TIMEOUT_S      = 30;   // warn if no accepted fix for this long
-const WALK_NOISE_FLOOR_M      = 3;    // per-tick movements smaller than this are jitter
+const SPEED_CEILING_MS        = 3.0;  // faster than this on foot = implausible GPS spike
+const ODOMETER_WINDOW_SIZE    = 4;    // number of recent fixes averaged for smoothed position
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let points = [];
@@ -25,6 +26,8 @@ let state = {
   lastAcceptedFix:    null,    // { lat, lng, timeMs } — last fix that passed accuracy gate
   lastAcceptedTimeMs: null,    // ms of last accepted fix (for GPS weak check)
   walkedDistance:     0,       // running odometer in metres (resets to 0 on resetAll)
+  odometerWindow:     [],      // rolling array of { lat, lng, timeMs } — accepted fixes only
+  prevSmoothed:       null,    // { lat, lng } — smoothed centroid from previous window tick
   lastTick:           null,
   fixLog:             [],      // every fix, accepted and rejected
 };
@@ -67,13 +70,12 @@ function onFix(lat, lng, accuracy) {
     return;
   }
 
-  // Steps 3 & 4 — distance to target, per-tick movement, and speed
-  // tickMovement is computed before updating lastAcceptedFix so it measures
-  // displacement from the previous accepted fix.  It is used for both speed
-  // and the walkedDistance odometer.  On the very first accepted fix
-  // lastAcceptedFix is null so tickMovement stays 0 — no phantom distance.
+  // Steps 3 & 4 — distance to target and speed (v1.2 dual-ring check)
+  // tickMovement is from lastAcceptedFix — used only for speed here.
+  // The odometer uses a separate window and reference point (see below).
+  // First fix: lastAcceptedFix is null, tickMovement stays 0, speed stays null.
   const dist = haversineMetres(lat, lng, target.location.lat, target.location.lng);
-  let speed       = null;
+  let speed        = null;
   let tickMovement = 0;
   if (state.lastAcceptedFix) {
     tickMovement = haversineMetres(lat, lng,
@@ -82,19 +84,47 @@ function onFix(lat, lng, accuracy) {
     if (dt > 0) speed = tickMovement / dt;
   }
 
-  // Record this fix as accepted (good accuracy), used for next tick's speed/movement
+  // Record this fix as accepted (good accuracy), used for next tick's speed check
   state.lastAcceptedFix    = { lat, lng, timeMs: nowMs };
   state.lastAcceptedTimeMs = nowMs;
 
-  // v1.3 odometer — sub-3m movements are GPS jitter, not real walking
-  if (tickMovement > WALK_NOISE_FLOOR_M) state.walkedDistance += tickMovement;
+  // v1.4 odometer — windowed smoothing with speed-ceiling spike rejection.
+  // Uses its own window (odometerWindow), independent of lastAcceptedFix.
+  // Spike rejection is odometer-only; the fix still flows into the arrival check.
+  let odometerNote = null;
+  const winLen = state.odometerWindow.length;
+  if (winLen > 0) {
+    const lastWin = state.odometerWindow[winLen - 1];
+    const odomDt  = (nowMs - lastWin.timeMs) / 1000;
+    if (odomDt > 0) {
+      const odomSpeed = haversineMetres(lat, lng, lastWin.lat, lastWin.lng) / odomDt;
+      if (odomSpeed > SPEED_CEILING_MS) {
+        odometerNote = 'odometer: spike ' + odomSpeed.toFixed(1) + ' m/s rejected';
+      }
+    }
+  }
+  if (odometerNote === null) {
+    state.odometerWindow.push({ lat, lng, timeMs: nowMs });
+    if (state.odometerWindow.length > ODOMETER_WINDOW_SIZE) state.odometerWindow.shift();
+    const wLen     = state.odometerWindow.length;
+    const smoothLat = state.odometerWindow.reduce(function(s, f) { return s + f.lat; }, 0) / wLen;
+    const smoothLng = state.odometerWindow.reduce(function(s, f) { return s + f.lng; }, 0) / wLen;
+    if (state.prevSmoothed) {
+      state.walkedDistance += haversineMetres(smoothLat, smoothLng,
+        state.prevSmoothed.lat, state.prevSmoothed.lng);
+    }
+    state.prevSmoothed = { lat: smoothLat, lng: smoothLng };
+  }
+
+  // noteStr is appended to every reason string so spikes are visible in the Tick row
+  const noteStr = odometerNote ? ' | ' + odometerNote : '';
 
   // Step 2 — cooldown gate (checked after speed is computed so debug still shows speed)
   const cooldownRemaining = state.lastFireTime
     ? Math.max(0, COOLDOWN_SECONDS - (nowMs - state.lastFireTime) / 1000)
     : 0;
   if (cooldownRemaining > 0) {
-    const reason = 'cooldown: ' + cooldownRemaining.toFixed(1) + 's remaining';
+    const reason = 'cooldown: ' + cooldownRemaining.toFixed(1) + 's remaining' + noteStr;
     appendLog(nowMs, lat, lng, accuracy, dist, speed, reason);
     state.lastTick = { lat, lng, accuracy, dist, speed, reason, inner: target.radius, outer: target.outerRadius };
     refreshDebug();
@@ -105,7 +135,7 @@ function onFix(lat, lng, accuracy) {
   const required = target.cumulativeDistanceFromStart;
   if (state.walkedDistance < required) {
     const reason = 'distance gate: ' + Math.round(state.walkedDistance) +
-      'm walked / ' + required + 'm required';
+      'm walked / ' + required + 'm required' + noteStr;
     appendLog(nowMs, lat, lng, accuracy, dist, speed, reason);
     state.lastTick = { lat, lng, accuracy, dist, speed, reason,
       inner: target.radius, outer: target.outerRadius };
@@ -128,6 +158,7 @@ function onFix(lat, lng, accuracy) {
   } else {
     reason = 'too far: ' + Math.round(dist) + 'm (inner ' + inner + 'm / outer ' + outer + 'm)';
   }
+  reason += noteStr;
 
   appendLog(nowMs, lat, lng, accuracy, dist, speed, reason);
   state.lastTick = { lat, lng, accuracy, dist, speed, reason, inner, outer };
@@ -363,6 +394,8 @@ function resetAll() {
   state.lastAcceptedFix    = null;
   state.lastAcceptedTimeMs = null;
   state.walkedDistance     = 0;
+  state.odometerWindow     = [];
+  state.prevSmoothed       = null;
   state.lastTick           = null;
   state.fixLog             = [];
   setModeLabel('IDLE', '');
@@ -398,6 +431,7 @@ function refreshDebug() {
   const gateEl = el('dbg-gate-status');
   gateEl.textContent = required === null ? '—' : gateOpen ? 'open' : 'locked';
   gateEl.className   = required === null ? '' : gateOpen ? 'arrived' : 'warn';
+  el('dbg-win').textContent = state.odometerWindow.length + '/' + ODOMETER_WINDOW_SIZE;
 
   if (!tick) return;
 
