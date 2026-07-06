@@ -20,7 +20,8 @@
       "defaultText": "You are at the start of the Home Walking Circuit, outside Tempo Apartments, Church Avenue.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 50
+      "outerRadius": 50,
+      "cumulativeDistanceFromStart": 0.0
     },
     {
       "sequence": 2,
@@ -36,7 +37,8 @@
       "defaultText": "Turn right onto Church Avenue, heading towards Bourke Street.",
       "additionalText": "42 Church Avenue is across the road.",
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 23.3
     },
     {
       "sequence": 3,
@@ -52,7 +54,8 @@
       "defaultText": "Turn right onto Bourke Street, at the corner of Church Avenue.",
       "additionalText": "Passing Mascot Bus Station Stand C for route 358.",
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 35.8
     },
     {
       "sequence": 4,
@@ -68,7 +71,8 @@
       "defaultText": "Turn left at the zebra crossing, crossing towards the older Mascot Train Station.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 132.6
     },
     {
       "sequence": 5,
@@ -84,7 +88,8 @@
       "defaultText": "Turn right onto Bourke Street, walking past the Mascot Train Station entrance.",
       "additionalText": "Passing Domino's Pizza, Royal Tobacco Shop and Mr Lai Restaurant on the right.",
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 146.9
     },
     {
       "sequence": 6,
@@ -100,7 +105,8 @@
       "defaultText": "Bus stop, Stand D.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 40
+      "outerRadius": 40,
+      "cumulativeDistanceFromStart": 179.0
     },
     {
       "sequence": 7,
@@ -116,7 +122,8 @@
       "defaultText": "Turn left into John Street, after the zebra crossing.",
       "additionalText": "Passing the GoGet car space.",
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 189.5
     },
     {
       "sequence": 8,
@@ -132,7 +139,8 @@
       "defaultText": "Turn right into Laycock Street, towards Coward Street.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 251.2
     },
     {
       "sequence": 9,
@@ -148,7 +156,8 @@
       "defaultText": "Turn left onto Coward Street.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 30
+      "outerRadius": 30,
+      "cumulativeDistanceFromStart": 325.8
     },
     {
       "sequence": 10,
@@ -164,7 +173,8 @@
       "defaultText": "Bus stop, Stand A.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 40
+      "outerRadius": 40,
+      "cumulativeDistanceFromStart": 332.8
     },
     {
       "sequence": 11,
@@ -180,7 +190,8 @@
       "defaultText": "You have arrived outside Little Whale Cafe. End of the Home Walking Circuit.",
       "additionalText": null,
       "additionalTextExpiry": null,
-      "outerRadius": 40
+      "outerRadius": 40,
+      "cumulativeDistanceFromStart": 463.3
     }
   ]
 }

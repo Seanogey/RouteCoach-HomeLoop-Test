@@ -3,11 +3,12 @@
 const DATA_FILE               = 'home_loop_points.json';
 const SIM_INTERVAL_MS         = 3000;
 
-// ── v1.2 arrival-detection constants ─────────────────────────────────────────
+// ── v1.2 / v1.3 arrival-detection constants ───────────────────────────────────
 const ACCURACY_FLOOR_M        = 30;   // discard fixes worse than this
 const STOP_SPEED_THRESHOLD_MS = 0.3;  // m/s — below this counts as "stopped"
 const COOLDOWN_SECONDS        = 7;    // no arrival checks this long after a fire
 const GPS_WEAK_TIMEOUT_S      = 30;   // warn if no accepted fix for this long
+const WALK_NOISE_FLOOR_M      = 3;    // per-tick movements smaller than this are jitter
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let points = [];
@@ -23,6 +24,7 @@ let state = {
   lastFireTime:       null,    // Date.now() when last point fired (for cooldown)
   lastAcceptedFix:    null,    // { lat, lng, timeMs } — last fix that passed accuracy gate
   lastAcceptedTimeMs: null,    // ms of last accepted fix (for GPS weak check)
+  walkedDistance:     0,       // running odometer in metres (resets to 0 on resetAll)
   lastTick:           null,
   fixLog:             [],      // every fix, accepted and rejected
 };
@@ -65,20 +67,27 @@ function onFix(lat, lng, accuracy) {
     return;
   }
 
-  // Steps 3 & 4 — distance and speed (computed before updating lastAcceptedFix)
+  // Steps 3 & 4 — distance to target, per-tick movement, and speed
+  // tickMovement is computed before updating lastAcceptedFix so it measures
+  // displacement from the previous accepted fix.  It is used for both speed
+  // and the walkedDistance odometer.  On the very first accepted fix
+  // lastAcceptedFix is null so tickMovement stays 0 — no phantom distance.
   const dist = haversineMetres(lat, lng, target.location.lat, target.location.lng);
-  let speed = null;
+  let speed       = null;
+  let tickMovement = 0;
   if (state.lastAcceptedFix) {
+    tickMovement = haversineMetres(lat, lng,
+      state.lastAcceptedFix.lat, state.lastAcceptedFix.lng);
     const dt = (nowMs - state.lastAcceptedFix.timeMs) / 1000;
-    if (dt > 0) {
-      speed = haversineMetres(lat, lng,
-        state.lastAcceptedFix.lat, state.lastAcceptedFix.lng) / dt;
-    }
+    if (dt > 0) speed = tickMovement / dt;
   }
 
-  // Record this fix as accepted (good accuracy), used for next speed calculation
+  // Record this fix as accepted (good accuracy), used for next tick's speed/movement
   state.lastAcceptedFix    = { lat, lng, timeMs: nowMs };
   state.lastAcceptedTimeMs = nowMs;
+
+  // v1.3 odometer — sub-3m movements are GPS jitter, not real walking
+  if (tickMovement > WALK_NOISE_FLOOR_M) state.walkedDistance += tickMovement;
 
   // Step 2 — cooldown gate (checked after speed is computed so debug still shows speed)
   const cooldownRemaining = state.lastFireTime
@@ -92,7 +101,19 @@ function onFix(lat, lng, accuracy) {
     return;
   }
 
-  // Step 5 — dual-ring arrival check
+  // Step 6 — v1.3 distance gate: must have walked to this point before arrival fires
+  const required = target.cumulativeDistanceFromStart;
+  if (state.walkedDistance < required) {
+    const reason = 'distance gate: ' + Math.round(state.walkedDistance) +
+      'm walked / ' + required + 'm required';
+    appendLog(nowMs, lat, lng, accuracy, dist, speed, reason);
+    state.lastTick = { lat, lng, accuracy, dist, speed, reason,
+      inner: target.radius, outer: target.outerRadius };
+    refreshDebug();
+    return;
+  }
+
+  // Step 7 — dual-ring arrival check
   const inner    = target.radius;
   const outer    = target.outerRadius;
   const innerHit = dist <= inner;
@@ -341,6 +362,7 @@ function resetAll() {
   state.lastFireTime       = null;
   state.lastAcceptedFix    = null;
   state.lastAcceptedTimeMs = null;
+  state.walkedDistance     = 0;
   state.lastTick           = null;
   state.fixLog             = [];
   setModeLabel('IDLE', '');
@@ -366,6 +388,16 @@ function refreshDebug() {
   el('dbg-target').textContent = target ? pointLabel(target) : 'DONE';
   el('dbg-inner').textContent  = target ? target.radius + 'm' : '—';
   el('dbg-outer').textContent  = target ? target.outerRadius + 'm' : '—';
+
+  // Distance gate
+  const walked   = Math.round(state.walkedDistance);
+  const required = target ? target.cumulativeDistanceFromStart : null;
+  const gateOpen = required !== null && state.walkedDistance >= required;
+  el('dbg-walked').textContent   = walked + 'm';
+  el('dbg-required').textContent = required !== null ? required + 'm' : '—';
+  const gateEl = el('dbg-gate-status');
+  gateEl.textContent = required === null ? '—' : gateOpen ? 'open' : 'locked';
+  gateEl.className   = required === null ? '' : gateOpen ? 'arrived' : 'warn';
 
   if (!tick) return;
 

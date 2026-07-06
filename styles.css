@@ -94,6 +94,8 @@ header {
 .arrived { color: #3fb950; font-weight: 700; }
 .warn    { color: #e3b341; font-style: italic; }
 
+/* gate status colours set directly on #dbg-gate-status via JS className */
+
 /* ── Now Playing ────────────────────────────────────────────── */
 #now-playing {
   background: #161b22;

@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0d1117">
   <title>Home Loop Test</title>
-  <link rel="stylesheet" href="styles.css?v=20260705">
+  <link rel="stylesheet" href="styles.css?v=20260706">
 </head>
 <body>
   <div id="app">
@@ -47,6 +47,17 @@
       </div>
 
       <div class="dbg-row">
+        <span class="dbg-key">Gate</span>
+        <span class="dbg-val">
+          <span id="dbg-walked">0m</span>
+          <span class="dbg-muted"> walked / </span>
+          <span id="dbg-required">—</span>
+          <span class="dbg-muted"> required — </span>
+          <span id="dbg-gate-status">—</span>
+        </span>
+      </div>
+
+      <div class="dbg-row">
         <span class="dbg-key">Departure</span>
         <span class="dbg-val" id="dbg-depart">—</span>
       </div>
@@ -80,6 +91,6 @@
     </div>
 
   </div>
-  <script src="app.js?v=20260706"></script>
+  <script src="app.js?v=20260706b"></script>
 </body>
 </html>
