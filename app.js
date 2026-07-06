@@ -178,13 +178,26 @@ function downloadLog() {
       '"' + String(e.reason).replace(/"/g, '""') + '"',
     ].join(',');
   });
-  const csv  = [header].concat(rows).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'homeloop_log_' +
+  const csv      = [header].concat(rows).join('\n');
+  const filename = 'homeloop_log_' +
     new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-') + '.csv';
+  const file = new File([csv], filename, { type: 'text/csv' });
+
+  // iOS Safari doesn't honour anchor download= and navigates inline instead.
+  // Web Share API with a File object opens the native share sheet (Save to Files etc).
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Home Loop fix log' }).catch(function(err) {
+      // User dismissed the sheet — not an error worth surfacing.
+      if (err.name !== 'AbortError') console.error('share failed:', err);
+    });
+    return;
+  }
+
+  // Fallback: desktop browsers that support anchor download= correctly.
+  const url = URL.createObjectURL(file);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
