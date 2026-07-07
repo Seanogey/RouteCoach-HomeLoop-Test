@@ -59,7 +59,7 @@ function onFix(lat, lng, accuracy) {
   if (state.mode === 'idle' || state.targetIdx >= points.length) return;
 
   const nowMs  = Date.now();
-  const target = points[state.targetIdx];
+  let target = points[state.targetIdx];
 
   // Step 1 — accuracy gate
   if (accuracy > ACCURACY_FLOOR_M) {
@@ -74,7 +74,7 @@ function onFix(lat, lng, accuracy) {
   // tickMovement is from lastAcceptedFix — used only for speed here.
   // The odometer uses a separate window and reference point (see below).
   // First fix: lastAcceptedFix is null, tickMovement stays 0, speed stays null.
-  const dist = haversineMetres(lat, lng, target.location.lat, target.location.lng);
+  let dist = haversineMetres(lat, lng, target.location.lat, target.location.lng);
   let speed        = null;
   let tickMovement = 0;
   if (state.lastAcceptedFix) {
@@ -118,6 +118,29 @@ function onFix(lat, lng, accuracy) {
 
   // noteStr is appended to every reason string so spikes are visible in the Tick row
   const noteStr = odometerNote ? ' | ' + odometerNote : '';
+
+  // v1.5 look-ahead auto-skip: if walkedDistance has already passed the NEXT point's
+  // required distance, the current point has been physically missed (likely a bad
+  // coordinate) — skip it without speaking its real cue and advance targetIdx.
+  // Loop so a single large gap can skip multiple consecutive points.
+  while (state.targetIdx + 1 < points.length &&
+         state.walkedDistance >= points[state.targetIdx + 1].cumulativeDistanceFromStart) {
+    const skipped    = points[state.targetIdx];
+    const skipReason = 'auto-skip: point ' + skipped.sequence +
+      ' never confirmed, walkedDistance passed threshold for point ' +
+      points[state.targetIdx + 1].sequence;
+    appendLog(nowMs, lat, lng, accuracy, dist, speed, skipReason);
+    state.lastTick = { lat, lng, accuracy, dist, speed, reason: skipReason,
+      inner: skipped.radius, outer: skipped.outerRadius };
+    refreshDebug();
+    enqueueSpeak('Debug: point ' + skipped.sequence + ' skipped, distance triggered.');
+    state.targetIdx++;
+    state.lastFireTime = nowMs; // respect normal cooldown before the next real check
+  }
+
+  // Refresh target and dist — may have changed if the skip loop advanced targetIdx
+  target = points[state.targetIdx];
+  dist   = haversineMetres(lat, lng, target.location.lat, target.location.lng);
 
   // Step 2 — cooldown gate (checked after speed is computed so debug still shows speed)
   const cooldownRemaining = state.lastFireTime
