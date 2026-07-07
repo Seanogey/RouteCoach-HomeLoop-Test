@@ -57,12 +57,19 @@ header {
 }
 
 .dbg-heading {
+  display: flex;
+  justify-content: space-between;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: .12em;
   color: #484f58;
   text-transform: uppercase;
   margin-bottom: 8px;
+}
+
+#app-version {
+  letter-spacing: .04em;
+  color: #388bfd;
 }
 
 .dbg-row {
