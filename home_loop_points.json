@@ -64,15 +64,15 @@
       "streetName": null,
       "qualifier": "at zebra crossing near Mascot Station",
       "location": {
-        "lat": -33.923144371250025,
-        "lng": 151.18720854930316
+        "lat": -33.92302,
+        "lng": 151.18713
       },
       "radius": 15,
       "defaultText": "Turn left at the zebra crossing, crossing towards the older Mascot Train Station.",
       "additionalText": null,
       "additionalTextExpiry": null,
       "outerRadius": 30,
-      "cumulativeDistanceFromStart": 132.6
+      "cumulativeDistanceFromStart": 120.5
     },
     {
       "sequence": 5,
@@ -89,7 +89,7 @@
       "additionalText": "Passing Domino's Pizza, Royal Tobacco Shop and Mr Lai Restaurant on the right.",
       "additionalTextExpiry": null,
       "outerRadius": 30,
-      "cumulativeDistanceFromStart": 146.9
+      "cumulativeDistanceFromStart": 148.1
     },
     {
       "sequence": 6,
@@ -106,7 +106,7 @@
       "additionalText": null,
       "additionalTextExpiry": null,
       "outerRadius": 40,
-      "cumulativeDistanceFromStart": 179.0
+      "cumulativeDistanceFromStart": 180.2
     },
     {
       "sequence": 7,
@@ -123,7 +123,7 @@
       "additionalText": "Passing the GoGet car space.",
       "additionalTextExpiry": null,
       "outerRadius": 30,
-      "cumulativeDistanceFromStart": 189.5
+      "cumulativeDistanceFromStart": 190.7
     },
     {
       "sequence": 8,
@@ -140,7 +140,7 @@
       "additionalText": null,
       "additionalTextExpiry": null,
       "outerRadius": 30,
-      "cumulativeDistanceFromStart": 251.2
+      "cumulativeDistanceFromStart": 252.4
     },
     {
       "sequence": 9,
@@ -157,7 +157,7 @@
       "additionalText": null,
       "additionalTextExpiry": null,
       "outerRadius": 30,
-      "cumulativeDistanceFromStart": 325.8
+      "cumulativeDistanceFromStart": 327.0
     },
     {
       "sequence": 10,
@@ -174,7 +174,7 @@
       "additionalText": null,
       "additionalTextExpiry": null,
       "outerRadius": 40,
-      "cumulativeDistanceFromStart": 332.8
+      "cumulativeDistanceFromStart": 334.0
     },
     {
       "sequence": 11,
@@ -191,7 +191,7 @@
       "additionalText": null,
       "additionalTextExpiry": null,
       "outerRadius": 40,
-      "cumulativeDistanceFromStart": 463.3
+      "cumulativeDistanceFromStart": 464.5
     }
   ]
 }
